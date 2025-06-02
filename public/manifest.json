@@ -1,0 +1,19 @@
+{
+    "manifest_version": 3,
+    "name": "Video GPT Transcript",
+    "version": "1.0",
+    "permissions": ["scripting", "tabs"],
+    "host_permissions": ["<all_urls>"],
+    "action": {
+      "default_popup": "index.html"
+    },
+    "background": {
+    },
+    "content_scripts": [
+      {
+        "matches": ["https://www.youtube.com/*"],
+        "js": ["content_script.js"]
+      }
+    ]
+  }
+  
