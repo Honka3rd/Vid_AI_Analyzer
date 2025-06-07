@@ -1,15 +1,7 @@
 import { memoize } from "lodash";
-import {
-  map,
-  of,
-  Subject,
-  Subscription,
-  switchMap
-} from "rxjs";
-import { Actions } from "../../shared/actions";
+import { catchError, of, Subscription, tap } from "rxjs";
 import { Resolver } from "./resolver";
 import { TranscriptExtractor } from "./TranscriptExtractor";
-import { CaptionDelta } from "./types";
 
 export type ListenerParams = {
   message: any;
@@ -27,49 +19,50 @@ export type Listener = (
 export type CaptionProcessCallback = (msg: string[]) => string;
 
 export class Strategy {
-  private readonly message$ = new Subject<any>();
   private subscription?: Subscription;
-  private destroyer?: () => void;
-  private sender?: (response?: any) => void;
+  private extractor: TranscriptExtractor | null = null;
+  private readonly aborter = new AbortController();
 
-  setSender(sender: (response?: any) => void) { 
-    this.sender = sender;
-    return this;
-  }
-
-  accept(message: any) {
-    if (message.type === Actions.GET_TRANSCRIPT) {
-      const extractor = Resolver.singleton().resolve(message.url);
-      if (!extractor) {
-        return;
-      }
-      this.message$.next(message);
+  listen() {
+    const extractor = this.resolver.resolve(window.location.href);
+    if (!extractor) {
+      return;
     }
-  }
-
-  private process$() {
-    return this.message$.pipe(
-      map((message) => {
-        const extractor = this.resolver.resolve(message.url);
-        const initialized = extractor?.onInit();
-        this.destroyer = () => initialized?.onDestroy();
-        return initialized ? initialized.observable$() : of<CaptionDelta[]>([]);
-      }),
-      switchMap((delta$) => delta$)
+    this.extractor = extractor.onInit();
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        this.subscription = this.process$().subscribe();
+      },
+      { signal: this.aborter.signal }
     );
   }
 
-  private constructor(private readonly resolver: Resolver) {
-    this.subscription = this.process$().subscribe((deltas) => {
-      if (this.sender) {
-        this.sender(deltas);
-      }
-    });
+  private process$() {
+    const extractor = this.extractor;
+    if (!extractor) {
+      return of([]);
+    }
+    return extractor.observable$().pipe(
+      tap((captions) => {
+        console.log("Captions extracted:", captions);
+      }),
+      catchError((error) => {
+        return of([]).pipe(
+          tap(() => {
+            console.error(error);
+          })
+        );
+      })
+    );
   }
+
+  private constructor(private readonly resolver: Resolver) {}
 
   destroy() {
     this.subscription?.unsubscribe();
-    this.destroyer?.();
+    this.extractor?.onDestroy();
+    this.aborter.abort();
   }
 
   static readonly singleton = memoize(() => new Strategy(Resolver.singleton()));

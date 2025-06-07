@@ -11,11 +11,11 @@ export default defineConfig({
     }),
   ],
   build: {
-    outDir: "dist",
+    outDir: "dist-popup",
+    sourcemap: true,
     rollupOptions: {
       input: {
         popup: "index.html", // ensure your popup is set here
-        content_script: "src/content/content_script.ts",
       },
       output: {
         entryFileNames: "[name].js",
