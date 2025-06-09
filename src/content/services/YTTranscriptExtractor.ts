@@ -16,7 +16,7 @@ import { Hosts } from "../../shared/hosts";
 
 class YTTranscriptExtractor implements TranscriptExtractor {
   public readonly id: string = Hosts.YOUTUBE;
-  public static readonly CONTAINER_ID = "#tp-caption-window-container";
+  public static readonly CONTAINER_ID = "#ytp-caption-window-container";
   public static readonly CAPTION_LOCATOR =
     ".caption-visual-line > .ytp-caption-segment";
   private static readonly timeout = 1000 * 60 * 2;
@@ -36,7 +36,10 @@ class YTTranscriptExtractor implements TranscriptExtractor {
 
   private texts(container: Element | null): CaptionDelta {
     if (!container) {
-      console.warn("YT caption container not found.");
+      return {
+        time: Date.now(),
+        lines: [],
+      };
     }
     const segments = Array.from(
       container
@@ -59,13 +62,15 @@ class YTTranscriptExtractor implements TranscriptExtractor {
 
     return from(
       new Promise<HTMLElement>((resolve, reject) => {
+        let onMountObserver: MutationObserver;
         const id = setTimeout(() => {
           reject(
             "Element is not found after " + YTTranscriptExtractor.timeout + "ms"
           );
           clearTimeout(id);
+          onMountObserver.disconnect();
         }, YTTranscriptExtractor.timeout);
-        const onMountObserver = new MutationObserver(([record]) => {
+        onMountObserver = new MutationObserver(([record]) => {
           try {
             const found = Array.from(record.addedNodes).find(
               (node) =>
@@ -75,16 +80,17 @@ class YTTranscriptExtractor implements TranscriptExtractor {
             if (found) {
               clearTimeout(id);
               resolve(found as HTMLElement);
+              onMountObserver.disconnect();
               return;
             }
           } catch (error) {
             reject(error);
-          } finally {
-            clearTimeout(id);
-            onMountObserver.disconnect();
           }
         });
-        onMountObserver.observe(document.body),
+        onMountObserver.observe(document.body, {
+          childList: true,
+          subtree: true,
+        }),
           {
             childList: true,
             subtree: true,
@@ -95,8 +101,9 @@ class YTTranscriptExtractor implements TranscriptExtractor {
 
   onInit() {
     this.subject = new BehaviorSubject(this.texts(this.getContainer()));
-    this.observer = new MutationObserver(() => {
-      this.subject?.next(this.texts(this.getContainer()));
+    this.observer = new MutationObserver(([record]) => {
+      console.log(record);
+      this.subject!.next(this.texts(this.getContainer()));
     });
     this.watching = true;
     return this;
@@ -108,6 +115,14 @@ class YTTranscriptExtractor implements TranscriptExtractor {
     this.container = null;
     this.watching = false;
     console.log("[YTTranscriptExtractor] Stopped watching captions.");
+  }
+
+  processor$() {
+    const subject = this.subject;
+    if (!subject) {
+      return throwError(() => new Error("Extractor is not initiated"));
+    }
+    return subject.pipe(distinctUntilChanged(isEqual));
   }
 
   observable$() {
@@ -122,14 +137,7 @@ class YTTranscriptExtractor implements TranscriptExtractor {
           characterData: true,
         });
       }),
-      switchMap((container) => {
-        const subject = this.subject;
-        if (!subject) {
-          return throwError(() => new Error("Extractor is not initiated"));
-        }
-        subject.next(this.texts(container));
-        return subject.pipe(distinctUntilChanged(isEqual));
-      })
+      switchMap(() => this.processor$())
     );
   }
 

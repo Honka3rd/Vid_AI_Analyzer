@@ -627,9 +627,9 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
           }
           return result;
         }
-        function mapToArray(map2) {
-          var index = -1, result = Array(map2.size);
-          map2.forEach(function(value, key) {
+        function mapToArray(map) {
+          var index = -1, result = Array(map.size);
+          map.forEach(function(value, key) {
             result[++index] = [key, value];
           });
           return result;
@@ -2743,8 +2743,8 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
             result2 = result2 === iteratee ? baseIteratee : result2;
             return arguments.length ? result2(arguments[0], arguments[1]) : result2;
           }
-          function getMapData(map3, key) {
-            var data = map3.__data__;
+          function getMapData(map2, key) {
+            var data = map2.__data__;
             return isKeyable(key) ? data[typeof key == "string" ? "string" : "hash"] : data.map;
           }
           function getMatchData(object) {
@@ -3648,14 +3648,14 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
           var find = createFind(findIndex);
           var findLast = createFind(findLastIndex);
           function flatMap(collection, iteratee2) {
-            return baseFlatten(map2(collection, iteratee2), 1);
+            return baseFlatten(map(collection, iteratee2), 1);
           }
           function flatMapDeep(collection, iteratee2) {
-            return baseFlatten(map2(collection, iteratee2), INFINITY);
+            return baseFlatten(map(collection, iteratee2), INFINITY);
           }
           function flatMapDepth(collection, iteratee2, depth) {
             depth = depth === undefined$1 ? 1 : toInteger(depth);
-            return baseFlatten(map2(collection, iteratee2), depth);
+            return baseFlatten(map(collection, iteratee2), depth);
           }
           function forEach(collection, iteratee2) {
             var func = isArray(collection) ? arrayEach : baseEach;
@@ -3691,7 +3691,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
           var keyBy = createAggregator(function(result2, value, key) {
             baseAssignValue(result2, key, value);
           });
-          function map2(collection, iteratee2) {
+          function map(collection, iteratee2) {
             var func = isArray(collection) ? arrayMap : baseMap;
             return func(collection, getIteratee(iteratee2, 3));
           }
@@ -5069,7 +5069,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
           lodash2.keyBy = keyBy;
           lodash2.keys = keys;
           lodash2.keysIn = keysIn;
-          lodash2.map = map2;
+          lodash2.map = map;
           lodash2.mapKeys = mapKeys;
           lodash2.mapValues = mapValues;
           lodash2.matches = matches;
@@ -6778,12 +6778,26 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     };
     return new Observable(init);
   }
-  function map(project, thisArg) {
+  function catchError(selector) {
     return operate(function(source, subscriber) {
-      var index = 0;
-      source.subscribe(createOperatorSubscriber(subscriber, function(value) {
-        subscriber.next(project.call(thisArg, value, index++));
+      var innerSub = null;
+      var syncUnsub = false;
+      var handledResult;
+      innerSub = source.subscribe(createOperatorSubscriber(subscriber, void 0, void 0, function(err) {
+        handledResult = innerFrom(selector(err, catchError(selector)(source)));
+        if (innerSub) {
+          innerSub.unsubscribe();
+          innerSub = null;
+          handledResult.subscribe(subscriber);
+        } else {
+          syncUnsub = true;
+        }
       }));
+      if (syncUnsub) {
+        innerSub.unsubscribe();
+        innerSub = null;
+        handledResult.subscribe(subscriber);
+      }
     });
   }
   function distinctUntilChanged(comparator, keySelector) {
@@ -6860,10 +6874,6 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       }));
     }) : identity;
   }
-  var Actions;
-  ((Actions2) => {
-    Actions2.GET_TRANSCRIPT = "GET_TRANSCRIPT";
-  })(Actions || (Actions = {}));
   var jquery$1 = { exports: {} };
   /*!
    * jQuery JavaScript Library v3.7.1
@@ -8110,14 +8120,14 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
             }
             return results;
           }
-          function condense(unmatched, map2, filter, context, xml) {
-            var elem, newUnmatched = [], i2 = 0, len = unmatched.length, mapped = map2 != null;
+          function condense(unmatched, map, filter, context, xml) {
+            var elem, newUnmatched = [], i2 = 0, len = unmatched.length, mapped = map != null;
             for (; i2 < len; i2++) {
               if (elem = unmatched[i2]) {
                 if (!filter || filter(elem, context, xml)) {
                   newUnmatched.push(elem);
                   if (mapped) {
-                    map2.push(i2);
+                    map.push(i2);
                   }
                 }
               }
@@ -10915,14 +10925,14 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
         jQuery.fn.extend({
           css: function(name, value) {
             return access(this, function(elem, name2, value2) {
-              var styles, len, map2 = {}, i = 0;
+              var styles, len, map = {}, i = 0;
               if (Array.isArray(name2)) {
                 styles = getStyles(elem);
                 len = name2.length;
                 for (; i < len; i++) {
-                  map2[name2[i]] = jQuery.css(elem, name2[i], false, styles);
+                  map[name2[i]] = jQuery.css(elem, name2[i], false, styles);
                 }
-                return map2;
+                return map;
               }
               return value2 !== void 0 ? jQuery.style(elem, name2, value2) : jQuery.css(elem, name2);
             }, name, value, arguments.length > 1);
@@ -12371,14 +12381,14 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
                 return this;
               },
               // Status-dependent callbacks
-              statusCode: function(map2) {
+              statusCode: function(map) {
                 var code;
-                if (map2) {
+                if (map) {
                   if (completed2) {
-                    jqXHR.always(map2[jqXHR.status]);
+                    jqXHR.always(map[jqXHR.status]);
                   } else {
-                    for (code in map2) {
-                      statusCode[code] = [statusCode[code], map2[code]];
+                    for (code in map) {
+                      statusCode[code] = [statusCode[code], map[code]];
                     }
                   }
                 }
@@ -13242,7 +13252,10 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     }
     texts(container) {
       if (!container) {
-        console.warn("YT caption container not found.");
+        return {
+          time: Date.now(),
+          lines: []
+        };
       }
       const segments = Array.from(
         container ? container.querySelectorAll(_YTTranscriptExtractor.CAPTION_LOCATOR) : []
@@ -13262,13 +13275,15 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       }
       return from(
         new Promise((resolve, reject) => {
+          let onMountObserver;
           const id = setTimeout(() => {
             reject(
               "Element is not found after " + _YTTranscriptExtractor.timeout + "ms"
             );
             clearTimeout(id);
+            onMountObserver.disconnect();
           }, _YTTranscriptExtractor.timeout);
-          const onMountObserver = new MutationObserver(([record]) => {
+          onMountObserver = new MutationObserver(([record]) => {
             try {
               const found = Array.from(record.addedNodes).find(
                 (node) => $(node).is(_YTTranscriptExtractor.CONTAINER_ID) || $(node).has(_YTTranscriptExtractor.CONTAINER_ID).length
@@ -13276,24 +13291,25 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
               if (found) {
                 clearTimeout(id);
                 resolve(found);
+                onMountObserver.disconnect();
                 return;
               }
             } catch (error) {
               reject(error);
-            } finally {
-              clearTimeout(id);
-              onMountObserver.disconnect();
             }
           });
-          onMountObserver.observe(document.body);
+          onMountObserver.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
         })
       );
     }
     onInit() {
       this.subject = new BehaviorSubject(this.texts(this.getContainer()));
-      this.observer = new MutationObserver(() => {
-        var _a;
-        (_a = this.subject) == null ? void 0 : _a.next(this.texts(this.getContainer()));
+      this.observer = new MutationObserver(([record]) => {
+        console.log(record);
+        this.subject.next(this.texts(this.getContainer()));
       });
       this.watching = true;
       return this;
@@ -13305,6 +13321,13 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       this.container = null;
       this.watching = false;
       console.log("[YTTranscriptExtractor] Stopped watching captions.");
+    }
+    processor$() {
+      const subject = this.subject;
+      if (!subject) {
+        return throwError(() => new Error("Extractor is not initiated"));
+      }
+      return subject.pipe(distinctUntilChanged(lodashExports.isEqual));
     }
     observable$() {
       return this.waitTargetMount().pipe(
@@ -13319,14 +13342,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
             characterData: true
           });
         }),
-        switchMap((container) => {
-          const subject = this.subject;
-          if (!subject) {
-            return throwError(() => new Error("Extractor is not initiated"));
-          }
-          subject.next(this.texts(container));
-          return subject.pipe(distinctUntilChanged(lodashExports.isEqual));
-        })
+        switchMap(() => this.processor$())
       );
     }
     captions() {
@@ -13342,7 +13358,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       return this.watching;
     }
   };
-  __publicField(_YTTranscriptExtractor, "CONTAINER_ID", "#tp-caption-window-container");
+  __publicField(_YTTranscriptExtractor, "CONTAINER_ID", "#ytp-caption-window-container");
   __publicField(_YTTranscriptExtractor, "CAPTION_LOCATOR", ".caption-visual-line > .ytp-caption-segment");
   __publicField(_YTTranscriptExtractor, "timeout", 1e3 * 60 * 2);
   __publicField(_YTTranscriptExtractor, "singleton", lodashExports.memoize(() => new _YTTranscriptExtractor()));
@@ -13371,53 +13387,52 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
   let Resolver = _Resolver;
   const _Strategy = class _Strategy {
     constructor(resolver) {
-      __publicField(this, "message$", new Subject());
       __publicField(this, "subscription");
-      __publicField(this, "destroyer");
-      __publicField(this, "sender");
+      __publicField(this, "extractor", null);
+      __publicField(this, "aborter", new AbortController());
       this.resolver = resolver;
-      this.subscription = this.process$().subscribe((deltas) => {
-        if (this.sender) {
-          this.sender(deltas);
-        }
-      });
     }
-    setSender(sender) {
-      this.sender = sender;
-      return this;
-    }
-    accept(message) {
-      if (message.type === Actions.GET_TRANSCRIPT) {
-        const extractor = Resolver.singleton().resolve(message.url);
-        if (!extractor) {
-          return;
-        }
-        this.message$.next(message);
+    listen() {
+      const extractor = this.resolver.resolve(window.location.href);
+      if (!extractor) {
+        return;
       }
+      this.extractor = extractor.onInit();
+      document.addEventListener(
+        "DOMContentLoaded",
+        () => {
+          this.subscription = this.process$().subscribe();
+        },
+        { signal: this.aborter.signal }
+      );
     }
     process$() {
-      return this.message$.pipe(
-        map((message) => {
-          const extractor = this.resolver.resolve(message.url);
-          const initialized = extractor == null ? void 0 : extractor.onInit();
-          this.destroyer = () => initialized == null ? void 0 : initialized.onDestroy();
-          return initialized ? initialized.observable$() : of([]);
+      const extractor = this.extractor;
+      if (!extractor) {
+        return of([]);
+      }
+      return extractor.observable$().pipe(
+        tap((captions) => {
+          console.log("Captions extracted:", captions);
         }),
-        switchMap((delta$) => delta$)
+        catchError((error) => {
+          return of([]).pipe(
+            tap(() => {
+              console.error(error);
+            })
+          );
+        })
       );
     }
     destroy() {
       var _a, _b;
       (_a = this.subscription) == null ? void 0 : _a.unsubscribe();
-      (_b = this.destroyer) == null ? void 0 : _b.call(this);
+      (_b = this.extractor) == null ? void 0 : _b.onDestroy();
+      this.aborter.abort();
     }
   };
   __publicField(_Strategy, "singleton", lodashExports.memoize(() => new _Strategy(Resolver.singleton())));
   let Strategy = _Strategy;
-  chrome.runtime.onMessage.addListener((message, _sender, send) => {
-    console.log("[Content Script] Received message:", message);
-    Strategy.singleton().setSender(send).accept(message);
-    return true;
-  });
+  Strategy.singleton().listen();
 })();
 //# sourceMappingURL=content_script.js.map
