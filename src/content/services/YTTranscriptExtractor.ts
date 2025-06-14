@@ -1,4 +1,4 @@
-import { clone, isEmpty, isEqual, memoize } from "lodash";
+import { clone, isEmpty, isEqual, isUndefined, last, memoize } from "lodash";
 import $ from "jquery";
 import { TranscriptExtractor } from "./TranscriptExtractor";
 import { Nullable } from "../../types/nullable";
@@ -6,6 +6,7 @@ import {
   BehaviorSubject,
   distinctUntilChanged,
   from,
+  Observable,
   of,
   switchMap,
   tap,
@@ -17,8 +18,9 @@ import { Hosts } from "../../shared/hosts";
 class YTTranscriptExtractor implements TranscriptExtractor {
   public readonly id: string = Hosts.YOUTUBE;
   public static readonly CONTAINER_ID = "#ytp-caption-window-container";
-  public static readonly CAPTION_LOCATOR =
-    ".caption-visual-line > .ytp-caption-segment";
+  public static readonly CONTAINER_SELECTOR = "caption-visual-line";
+  public static readonly TEXT_SELECTOR = "ytp-caption-segment";
+  public static readonly CAPTION_LOCATOR = `.${YTTranscriptExtractor.CONTAINER_SELECTOR} > .${YTTranscriptExtractor.TEXT_SELECTOR}`;
   private static readonly timeout = 1000 * 60 * 2;
 
   private observer: Nullable<MutationObserver> = null;
@@ -90,20 +92,41 @@ class YTTranscriptExtractor implements TranscriptExtractor {
         onMountObserver.observe(document.body, {
           childList: true,
           subtree: true,
-        }),
-          {
-            childList: true,
-            subtree: true,
-          };
+        });
       })
     );
   }
 
+  private extract(records: MutationRecord[]) {
+    const record = last(records)
+    if (isUndefined(record)) {
+      return [];
+    }
+    return Array.from(record.addedNodes).filter((node) => {
+      return node.nodeType === Node.TEXT_NODE;
+    });
+  }
+
+  private toDelta(captionNodeList: Node[]) {
+    return {
+      time: Date.now(),
+      lines: captionNodeList
+        .map((node) => node.textContent)
+        .filter((text) => !isEmpty(text)) as string[],
+    };
+  }
+
   onInit() {
     this.subject = new BehaviorSubject(this.texts(this.getContainer()));
-    this.observer = new MutationObserver(([record]) => {
-      console.log(record);
-      this.subject!.next(this.texts(this.getContainer()));
+    this.observer = new MutationObserver((records) => {
+      if (!records.length) {
+        return;
+      }
+      const captionNodeList = this.extract(records);
+      if (isEmpty(captionNodeList)) {
+        return;
+      }
+      this.subject!.next(this.toDelta(captionNodeList));
     });
     this.watching = true;
     return this;
@@ -117,7 +140,7 @@ class YTTranscriptExtractor implements TranscriptExtractor {
     console.log("[YTTranscriptExtractor] Stopped watching captions.");
   }
 
-  processor$() {
+  processor$(): Observable<CaptionDelta> {
     const subject = this.subject;
     if (!subject) {
       return throwError(() => new Error("Extractor is not initiated"));
@@ -134,7 +157,6 @@ class YTTranscriptExtractor implements TranscriptExtractor {
         this.observer?.observe(container, {
           childList: true,
           subtree: true,
-          characterData: true,
         });
       }),
       switchMap(() => this.processor$())

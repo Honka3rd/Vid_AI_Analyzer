@@ -2,6 +2,7 @@ import { memoize } from "lodash";
 import { catchError, of, Subscription, tap } from "rxjs";
 import { Resolver } from "./resolver";
 import { TranscriptExtractor } from "./TranscriptExtractor";
+import { CaptionDelta } from "./types";
 
 export type ListenerParams = {
   message: any;
@@ -38,6 +39,10 @@ export class Strategy {
     );
   }
 
+  private toString(caption: CaptionDelta) {
+    return [new Date(caption.time), ':', ...caption.lines.map((line) => line.trim())].join(" ");
+  }
+
   private process$() {
     const extractor = this.extractor;
     if (!extractor) {
@@ -45,7 +50,7 @@ export class Strategy {
     }
     return extractor.observable$().pipe(
       tap((captions) => {
-        console.log("Captions extracted:", captions);
+        console.log("Captions extracted:", this.toString(captions));
       }),
       catchError((error) => {
         return of([]).pipe(

@@ -13305,11 +13305,33 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
         })
       );
     }
+    extract(records) {
+      const record = lodashExports.last(records);
+      if (lodashExports.isUndefined(record)) {
+        return [];
+      }
+      return Array.from(record.addedNodes).filter((node) => {
+        return node.nodeType === Node.TEXT_NODE;
+      });
+    }
+    toDelta(captionNodeList) {
+      return {
+        time: Date.now(),
+        lines: captionNodeList.map((node) => node.textContent).filter((text) => !lodashExports.isEmpty(text))
+      };
+    }
     onInit() {
       this.subject = new BehaviorSubject(this.texts(this.getContainer()));
-      this.observer = new MutationObserver(([record]) => {
-        console.log(record);
-        this.subject.next(this.texts(this.getContainer()));
+      this.observer = new MutationObserver((records) => {
+        console.log("[YTTranscriptExtractor] Captions changed", records);
+        if (!records.length) {
+          return;
+        }
+        const captionNodeList = this.extract(records);
+        if (lodashExports.isEmpty(captionNodeList)) {
+          return;
+        }
+        this.subject.next(this.toDelta(captionNodeList));
       });
       this.watching = true;
       return this;
@@ -13338,8 +13360,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
           var _a;
           (_a = this.observer) == null ? void 0 : _a.observe(container, {
             childList: true,
-            subtree: true,
-            characterData: true
+            subtree: true
           });
         }),
         switchMap(() => this.processor$())
@@ -13359,7 +13380,9 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     }
   };
   __publicField(_YTTranscriptExtractor, "CONTAINER_ID", "#ytp-caption-window-container");
-  __publicField(_YTTranscriptExtractor, "CAPTION_LOCATOR", ".caption-visual-line > .ytp-caption-segment");
+  __publicField(_YTTranscriptExtractor, "CONTAINER_SELECTOR", "caption-visual-line");
+  __publicField(_YTTranscriptExtractor, "TEXT_SELECTOR", "ytp-caption-segment");
+  __publicField(_YTTranscriptExtractor, "CAPTION_LOCATOR", `.${_YTTranscriptExtractor.CONTAINER_SELECTOR} > .${_YTTranscriptExtractor.TEXT_SELECTOR}`);
   __publicField(_YTTranscriptExtractor, "timeout", 1e3 * 60 * 2);
   __publicField(_YTTranscriptExtractor, "singleton", lodashExports.memoize(() => new _YTTranscriptExtractor()));
   let YTTranscriptExtractor = _YTTranscriptExtractor;
@@ -13406,6 +13429,9 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
         { signal: this.aborter.signal }
       );
     }
+    toString(caption) {
+      return [new Date(caption.time), ":", ...caption.lines.map((line) => line.trim())].join(" ");
+    }
     process$() {
       const extractor = this.extractor;
       if (!extractor) {
@@ -13413,7 +13439,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       }
       return extractor.observable$().pipe(
         tap((captions) => {
-          console.log("Captions extracted:", captions);
+          console.log("Captions extracted:", this.toString(captions));
         }),
         catchError((error) => {
           return of([]).pipe(
