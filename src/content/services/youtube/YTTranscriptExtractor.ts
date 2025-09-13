@@ -1,7 +1,7 @@
 import { clone, isEmpty, isEqual, isUndefined, last, memoize } from "lodash";
 import $ from "jquery";
-import { TranscriptExtractor } from "./TranscriptExtractor";
-import { Nullable } from "../../types/nullable";
+import { TranscriptExtractor } from "../TranscriptExtractor";
+import { Nullable } from "../../../types/nullable";
 import {
   BehaviorSubject,
   distinctUntilChanged,
@@ -12,8 +12,8 @@ import {
   tap,
   throwError,
 } from "rxjs";
-import { CaptionDelta } from "./types";
-import { Hosts } from "../../shared/hosts";
+import { CaptionDelta } from "../types";
+import { Hosts } from "../../../shared/hosts";
 
 class YTTranscriptExtractor implements TranscriptExtractor {
   public readonly id: string = Hosts.YOUTUBE;
@@ -98,7 +98,7 @@ class YTTranscriptExtractor implements TranscriptExtractor {
   }
 
   private extract(records: MutationRecord[]) {
-    const record = last(records)
+    const record = last(records);
     if (isUndefined(record)) {
       return [];
     }
@@ -117,6 +117,7 @@ class YTTranscriptExtractor implements TranscriptExtractor {
   }
 
   onInit() {
+    console.log("[YTTranscriptExtractor] Start watching captions.");
     this.subject = new BehaviorSubject(this.texts(this.getContainer()));
     this.observer = new MutationObserver((records) => {
       if (!records.length) {

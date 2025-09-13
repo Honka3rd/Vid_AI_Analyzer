@@ -1,3 +1,3 @@
-import { Strategy } from "./services/strategy"
+import { Watcher } from "./services/watcher";
 
-Strategy.singleton().listen();
+Watcher.singleton().watch()

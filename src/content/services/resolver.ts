@@ -1,6 +1,6 @@
 import { isEmpty, memoize } from "lodash";
 import { TranscriptExtractor } from "./TranscriptExtractor";
-import YTTranscriptExtractor from "./YTTranscriptExtractor";
+import YTTranscriptExtractor from "./youtube/YTTranscriptExtractor";
 import { Hosts } from "../../shared/hosts";
 
 export class Resolver {

@@ -10,7 +10,7 @@
   "background": {},
   "content_scripts": [
     {
-      "matches": ["https://www.youtube.com/watch*"],
+      "matches": ["https://www.youtube.com/*"],
       "run_at": "document_start",
       "js": ["content_script.js"]
     }

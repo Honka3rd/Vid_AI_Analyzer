@@ -13321,9 +13321,9 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       };
     }
     onInit() {
+      console.log("[YTTranscriptExtractor] Start watching captions.");
       this.subject = new BehaviorSubject(this.texts(this.getContainer()));
       this.observer = new MutationObserver((records) => {
-        console.log("[YTTranscriptExtractor] Captions changed", records);
         if (!records.length) {
           return;
         }
@@ -13413,13 +13413,18 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
       __publicField(this, "subscription");
       __publicField(this, "extractor", null);
       __publicField(this, "aborter", new AbortController());
+      __publicField(this, "initialized", false);
       this.resolver = resolver;
     }
     listen() {
+      console.log("Start listen to : " + window.location.href);
       const extractor = this.resolver.resolve(window.location.href);
       if (!extractor) {
-        return;
+        console.log("Caption extractor failed to load");
+        return false;
       }
+      console.log("Caption extractor loaded successfully");
+      this.initialized = true;
       this.extractor = extractor.onInit();
       document.addEventListener(
         "DOMContentLoaded",
@@ -13428,9 +13433,17 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
         },
         { signal: this.aborter.signal }
       );
+      return true;
+    }
+    isInitialized() {
+      return this.initialized;
     }
     toString(caption) {
-      return [new Date(caption.time), ":", ...caption.lines.map((line) => line.trim())].join(" ");
+      return [
+        new Date(caption.time),
+        ":",
+        ...caption.lines.map((line) => line.trim())
+      ].join(" ");
     }
     process$() {
       const extractor = this.extractor;
@@ -13452,6 +13465,7 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
     }
     destroy() {
       var _a, _b;
+      console.log("Stop listen to : " + window.location.href);
       (_a = this.subscription) == null ? void 0 : _a.unsubscribe();
       (_b = this.extractor) == null ? void 0 : _b.onDestroy();
       this.aborter.abort();
@@ -13459,6 +13473,79 @@ var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "sy
   };
   __publicField(_Strategy, "singleton", lodashExports.memoize(() => new _Strategy(Resolver.singleton())));
   let Strategy = _Strategy;
-  Strategy.singleton().listen();
+  const _Watcher = class _Watcher {
+    constructor(strategy) {
+      __publicField(this, "proxied", false);
+      __publicField(this, "aborter", new AbortController());
+      __publicField(this, "fire", lodashExports.debounce(() => {
+        try {
+          this.strategy.destroy();
+        } catch (e) {
+          console.warn("[Watcher] destroy error:", e);
+        }
+        try {
+          this.strategy.listen();
+        } catch (e) {
+          console.warn("[Watcher] listen error:", e);
+        }
+      }, 50));
+      __publicField(this, "wrap", (fn) => {
+        const watcher = this;
+        return function(...args) {
+          const ret = fn.apply(this, args);
+          console.log({ route: args });
+          watcher.fire();
+          return ret;
+        };
+      });
+      this.strategy = strategy;
+    }
+    proxy() {
+      if (this.proxied) {
+        console.log("Already proxied");
+        return;
+      }
+      console.log("Proxy routing");
+      history.pushState = this.wrap(_Watcher.origPush);
+      history.replaceState = this.wrap(_Watcher.origReplace);
+      window.addEventListener("popstate", this.fire, {
+        signal: this.aborter.signal
+      });
+      window.addEventListener("hashchange", this.fire, {
+        signal: this.aborter.signal
+      });
+      this.proxied = true;
+    }
+    unproxy() {
+      if (!this.proxied) {
+        console.log("Already unproxied");
+        return;
+      }
+      console.log("Unproxy routing");
+      history.pushState = _Watcher.origPush;
+      history.replaceState = _Watcher.origReplace;
+      this.aborter.abort();
+      this.proxied = false;
+    }
+    watch() {
+      const r = this.strategy.listen();
+      console.log(`listen caption result: ${r}`);
+      if (r) {
+        this.proxy();
+      }
+    }
+    unwatch() {
+      this.strategy.destroy();
+      console.log("unlisten caption result");
+      this.unproxy();
+    }
+  };
+  __publicField(_Watcher, "origPush", history.pushState);
+  __publicField(_Watcher, "origReplace", history.replaceState);
+  __publicField(_Watcher, "singleton", lodashExports.memoize(
+    () => new _Watcher(Strategy.singleton())
+  ));
+  let Watcher = _Watcher;
+  Watcher.singleton().watch();
 })();
 //# sourceMappingURL=content_script.js.map

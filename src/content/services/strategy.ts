@@ -23,12 +23,17 @@ export class Strategy {
   private subscription?: Subscription;
   private extractor: TranscriptExtractor | null = null;
   private readonly aborter = new AbortController();
+  private initialized = false;
 
   listen() {
+    console.log("Start listen to : " + window.location.href);
     const extractor = this.resolver.resolve(window.location.href);
     if (!extractor) {
-      return;
+      console.log("Caption extractor failed to load");
+      return false;
     }
+    console.log("Caption extractor loaded successfully");
+    this.initialized = true;
     this.extractor = extractor.onInit();
     document.addEventListener(
       "DOMContentLoaded",
@@ -37,10 +42,19 @@ export class Strategy {
       },
       { signal: this.aborter.signal }
     );
+    return true;
+  }
+
+  isInitialized() {
+    return this.initialized;
   }
 
   private toString(caption: CaptionDelta) {
-    return [new Date(caption.time), ':', ...caption.lines.map((line) => line.trim())].join(" ");
+    return [
+      new Date(caption.time),
+      ":",
+      ...caption.lines.map((line) => line.trim()),
+    ].join(" ");
   }
 
   private process$() {
@@ -65,6 +79,7 @@ export class Strategy {
   private constructor(private readonly resolver: Resolver) {}
 
   destroy() {
+    console.log("Stop listen to : " + window.location.href);
     this.subscription?.unsubscribe();
     this.extractor?.onDestroy();
     this.aborter.abort();
